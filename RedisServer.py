@@ -14,12 +14,13 @@ asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 class RedisServer:
 
-    def __init__(self):
+    def __init__(self, channel:str):
         self.redis = None
         self.receiver = None
         self.loop = None
         self.path = None
         self.mpsc = None
+        self.channel = channel
         self.routes = {}
 
     async def handler(self):
@@ -27,12 +28,12 @@ class RedisServer:
             try:
                 assert(isinstance(channel, AbcChannel))
                 channel = str(channel.name, 'utf-8')
-                coro = self.routes.get(channel)
-                if coro:
+                if channel == self.channel:
                     msg = json.loads(str(msg, 'utf-8'))
                     job = Job.from_json(msg)
-                    # assert(job.type == channel.name)
-                    await coro(*job.args, **job.kwargs)
+                    coro = self.routes.get(job.get('function'))
+                    if coro:
+                        await coro(*job.args, **job.kwargs)
             except Exception as e:
                 logging.exception('')
 
@@ -40,7 +41,7 @@ class RedisServer:
         self.redis = await aioredis.create_redis(self.path, loop=self.loop)
         self.mpsc = Receiver(loop=self.loop)
         Task(self.handler())
-        await self.redis.subscribe(*[self.mpsc.channel(route) for route in self.routes])
+        await self.redis.subscribe(self.mpsc.channel(self.channel))
 
     async def stop(self):
         self.redis.stop()
@@ -61,11 +62,15 @@ class RedisServer:
 
 
 if __name__ == '__main__':
-    app = RedisServer()
+    app = RedisServer(__name__)
+    print(__name__)
 
-    @app.route('/')
+    @app.route('/teste')
     async def test(*args, **kwargs):
         print(args,kwargs)
 
     app.serve('redis://localhost')
+
+    
+
 

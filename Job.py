@@ -14,9 +14,10 @@ class JobFromJsonError(Exception):
 class Job:
     hash = hashlib.md5()
 
-    def __init__(self, j_type, *args, **kwargs):
+    def __init__(self, function, type, *args, **kwargs):
         self.time = time.time()
-        self.type = j_type
+        self.function = function
+        self.type = type
         self.args = args
         self.kwargs = kwargs
         Job.hash.update(bytes(str(time.time() + id(self)), encoding='utf-8'))
