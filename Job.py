@@ -14,17 +14,18 @@ class JobFromJsonError(Exception):
 class Job:
     hash = hashlib.md5()
 
-    def __init__(self, function, type, *args, **kwargs):
+    def __init__(self, function_name, message_type, return_channel, args, kwargs):
         self.time = time.time()
-        self.function = function
-        self.type = type
+        self.function_name = function_name
+        self.message_type = message_type
+        self.return_channel = return_channel
         self.args = args
         self.kwargs = kwargs
         Job.hash.update(bytes(str(time.time() + id(self)), encoding='utf-8'))
         self.id = Job.hash.hexdigest()
 
     def __repr__(self):
-        return '<class {} Job({},{},{})>'.format(self.id, self.type, self.args, self.kwargs)
+        return '<class {} Job({},{},{},{},{},{})>'.format(self.id, self.function_name, self.message_type, self.return_channel, self.args, self.kwargs)
 
     def __str__(self):
         return repr(self)
@@ -39,17 +40,18 @@ class Job:
 
     @staticmethod
     def from_json(data: dict):
-        j_type = data.get('type')
+        function_name = data.get('function_name')
+        message_type = data.get('message_type')
+        return_channel = data.get('return_channel')
+        job_time = data.get('time')
+        job_id = data.get('id')
         args = data.get('args')
         kwargs = data.get('kwargs')
 
-        j_time = data.get('time')
-        j_id = data.get('id')
-
-        if all((j_type, args, kwargs, j_time, j_id)):
-            job = Job(j_type, args, kwargs)
-            job.time = j_time
-            job.j_id = j_id
+        if all((function_name,message_type,return_channel,job_time,job_id)) and (args or kwargs):
+            job = Job(function_name, message_type, return_channel,args,kwargs)
+            job.time = job_time
+            job.j_id = job_id
             return job
         else:
             raise JobFromJsonError(data)

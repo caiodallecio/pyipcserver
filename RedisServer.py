@@ -20,6 +20,7 @@ class RedisServer:
         self.loop = None
         self.path = None
         self.mpsc = None
+        self.redis_a = None
         self.channel = channel
         self.routes = {}
 
@@ -31,46 +32,52 @@ class RedisServer:
                 if channel == self.channel:
                     msg = json.loads(str(msg, 'utf-8'))
                     job = Job.from_json(msg)
-                    coro = self.routes.get(job.get('function'))
+                    coro = self.routes.get(job.function_name)
                     if coro:
                         await coro(*job.args, **job.kwargs)
             except Exception as e:
                 logging.exception('')
 
-    async def start(self):
+    async def start(self,rpc=True):
         self.redis = await aioredis.create_redis(self.path, loop=self.loop)
+        self.redis_a = await aioredis.create_redis(self.path,loop=self.loop)
         self.mpsc = Receiver(loop=self.loop)
         Task(self.handler())
         await self.redis.subscribe(self.mpsc.channel(self.channel))
+        Task(app.rpc('/teste/teste', 'teste', teste='teste'))
 
     async def stop(self):
         self.redis.stop()
         self.receiver.stop()
 
+    async def rpc(self, function_path:str, *args, **kwargs):
+        _, channel, function_name = function_path.split('/',2)
+        job = Job('/' + function_name, 'call', self.channel, args, kwargs)
+        await self.redis_a.publish(channel, job.json)
+
     def route(self, path: str):
         def pathed(coro: Coroutine):
             self.routes[path] = coro
             return coro
-
         return pathed
 
-    def serve(self, path, loop=asyncio.get_event_loop()):
+    def serve(self, path, rpc=True, loop=asyncio.get_event_loop()):
         self.path = path
         self.loop = loop
-        self.loop.create_task(self.start())
+        self.loop.create_task(self.start(rpc=rpc))
         self.loop.run_forever()
 
-
 if __name__ == '__main__':
-    app = RedisServer(__name__)
-    print(__name__)
+    app = RedisServer('teste')
 
     @app.route('/teste')
-    async def test(*args, **kwargs):
-        print(args,kwargs)
+    async def test(first, teste):
+        print(first,teste)
+
 
     app.serve('redis://localhost')
 
-    
+
+
 
 
